@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/emptyClick"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/black"
+        android:gravity="center_vertical"
+        android:minHeight="?attr/actionBarSize"
+        android:visibility="visible">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:src="@drawable/ic_arrow_back_black_24dp"
+                android:tint="@android:color/white" />
+
+            <TextView
+                android:id="@+id/toolbarTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="13dp"
+                android:layout_marginEnd="13dp"
+                android:layout_toEndOf="@id/backButton"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/flash"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:src="@drawable/ic_flashlight_off"
+                android:tint="@android:color/white" />
+
+        </RelativeLayout>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <RelativeLayout
+        android:id="@+id/contentView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/toolbar"
+        android:orientation="vertical">
+
+        <jdroidcoder.ua.camera2.helper.AutoFitTextureView
+            android:id="@+id/textureView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <RelativeLayout
+            android:id="@+id/bottomMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/textureView"
+            android:layout_alignParentBottom="true"
+            android:background="@android:color/black">
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp">
+
+                <com.makeramen.roundedimageview.RoundedImageView
+                    android:layout_width="90dp"
+                    android:layout_height="90dp"
+                    android:layout_gravity="center"
+                    android:background="@android:color/white"
+                    app:riv_border_color="@color/gray_light"
+                    app:riv_border_width="2dp"
+                    app:riv_mutate_background="true"
+                    app:riv_oval="true" />
+
+                <com.makeramen.roundedimageview.RoundedImageView
+                    android:id="@+id/takePhoto"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:layout_gravity="center"
+                    android:background="@android:color/white"
+                    app:riv_border_color="@android:color/black"
+                    app:riv_border_width="2dp"
+                    app:riv_mutate_background="true"
+                    app:riv_oval="true" />
+            </FrameLayout>
+
+            <ImageView
+                android:id="@+id/rotateCamera"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="20dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_flip_camera_ios_24px" />
+        </RelativeLayout>
+
+    </RelativeLayout>
+
+</RelativeLayout>
