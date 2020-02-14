@@ -62,18 +62,19 @@
         android:layout_below="@id/toolbar"
         android:orientation="vertical">
 
-        <jdroidcoder.ua.camera2.helper.AutoFitTextureView
+        <TextureView
             android:id="@+id/textureView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_above="@id/bottomMenu" />
 
         <RelativeLayout
             android:id="@+id/bottomMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/textureView"
             android:layout_alignParentBottom="true"
-            android:background="@android:color/black">
+            android:background="@android:color/black"
+            android:minHeight="120dp">
 
             <FrameLayout
                 android:layout_width="wrap_content"

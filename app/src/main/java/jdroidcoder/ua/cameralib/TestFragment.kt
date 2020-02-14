@@ -22,8 +22,10 @@ class TestFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        Camera2.with(this).cameraMode(Camera2.CAMERA_MODE_FRONT).cameraRotateEnabled(true)
-            .cameraFlashEnabled(false).start()
+        Camera2.with(this).cameraMode(Camera2.CAMERA_MODE_FRONT).start()
+        photo?.setOnClickListener {
+            Camera2.with(this).cameraMode(Camera2.CAMERA_MODE_FRONT).start()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -31,9 +33,9 @@ class TestFragment : Fragment() {
         println("TestFragment $resultCode")
         if(null != data && data.hasExtra(Camera2.PHOTO_URL)){
             println("photo_url  ${data.getStringExtra(Camera2.PHOTO_URL)}")
-//            Glide.with(this).load(data.getStringExtra(Camera2.PHOTO_URL)).diskCacheStrategy(
-//                DiskCacheStrategy.NONE).skipMemoryCache(true).into(photo)
-            photo?.setImageURI(Uri.parse(data.getStringExtra(Camera2.PHOTO_URL)))
+            Glide.with(this).load(data.getStringExtra(Camera2.PHOTO_URL)).diskCacheStrategy(
+                DiskCacheStrategy.NONE).skipMemoryCache(true).into(photo)
+//            photo?.setImageURI(Uri.parse(data.getStringExtra(Camera2.PHOTO_URL)))
         }
     }
 }
