@@ -158,6 +158,12 @@ class CameraActivity : AppCompatActivity(), Executor {
             .apply {
                 setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY)
                 setLensFacing(cameraId)
+                setFlashMode(
+                    if (true == CameraX.getCameraInfo(cameraId)?.isFlashAvailable?.value && isFlashEnabled)
+                        FlashMode.ON
+                    else
+                        FlashMode.OFF
+                )
                 setTargetRotation(textureView.display.rotation)
             }.build()
         imageCapture = ImageCapture(imageCaptureConfig)
