@@ -171,7 +171,7 @@ class CameraActivity : AppCompatActivity(), Executor {
         takePhoto.setOnClickListener {
             val file = File(getExternalFilesDir(null), "${System.currentTimeMillis()}.jpg")
             val metadata = ImageCapture.Metadata().apply {
-                isReversedHorizontal = cameraId == CameraX.LensFacing.FRONT
+//                isReversedHorizontal = cameraId == CameraX.LensFacing.FRONT
             }
             imageCapture.takePicture(
                 file,
