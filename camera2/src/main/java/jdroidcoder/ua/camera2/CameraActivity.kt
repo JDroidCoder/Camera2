@@ -4,12 +4,9 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
-import android.graphics.Matrix
 import android.os.Bundle
 import android.util.DisplayMetrics
-import android.view.Surface
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -211,68 +208,9 @@ class CameraActivity : AppCompatActivity(), Executor {
         }
     }
 
-//    @SuppressLint("RestrictedApi")
-//    private fun captureImage() {
-//        val imageCaptureConfig = ImageCaptureConfig.Builder()
-//            .apply {
-//                setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY)
-//                setLensFacing(cameraId)
-//                setFlashMode(
-//                    if (true == CameraX.getCameraInfo(cameraId)?.isFlashAvailable?.value && isFlashEnabled)
-//                        FlashMode.ON
-//                    else
-//                        FlashMode.OFF
-//                )
-//                setTargetRotation(textureView.display.rotation)
-//            }.build()
-//        imageCapture = ImageCapture(imageCaptureConfig)
-//        CameraX.bindToLifecycle(this, imageCapture)
-//        takePhoto.setOnClickListener {
-//            val file = File(getExternalFilesDir(null), "${System.currentTimeMillis()}.jpg")
-//            val metadata = ImageCapture.Metadata().apply {
-////                isReversedHorizontal = cameraId == CameraX.LensFacing.FRONT
-//            }
-//            imageCapture.takePicture(
-//                file,
-//                metadata,
-//                this,
-//                object : ImageCapture.OnImageSavedListener {
-//                    override fun onImageSaved(file: File) {
-//                        setResult(Activity.RESULT_OK, intent.putExtra(PHOTO_URL, file.absolutePath))
-//                        this@CameraActivity.finish()
-//                    }
-//
-//                    override fun onError(
-//                        imageCaptureError: ImageCapture.ImageCaptureError,
-//                        message: String,
-//                        cause: Throwable?
-//                    ) {
-//                        cause?.printStackTrace()
-//                        setResult(Activity.RESULT_CANCELED)
-//                        finish()
-//                    }
-//                })
-//        }
-//}
-
     override fun execute(command: Runnable) {
         command.run()
     }
-
-//    private fun updateTransform() {
-//        val matrix = Matrix()
-//        val centerX = textureView.width / 2f
-//        val centerY = textureView.height / 2f
-//        val rotationDegrees = when (textureView.display.rotation) {
-//            Surface.ROTATION_0 -> 0
-//            Surface.ROTATION_90 -> 90
-//            Surface.ROTATION_180 -> 180
-//            Surface.ROTATION_270 -> 270
-//            else -> return
-//        }
-//        matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
-//        textureView.setTransform(matrix)
-//    }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -296,9 +234,6 @@ class CameraActivity : AppCompatActivity(), Executor {
 
     override fun onDestroy() {
         super.onDestroy()
-//        imageCapture.let {
-//            CameraX.unbind(imageCapture)
-//        }
         cameraExecutor.shutdown()
     }
 }
