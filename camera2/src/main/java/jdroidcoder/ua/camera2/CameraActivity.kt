@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import jdroidcoder.ua.camera2.helper.BaseBuilder
@@ -20,6 +21,8 @@ import jdroidcoder.ua.camera2.helper.Camera2.PHOTO_URL
 import kotlinx.android.synthetic.main.activity_camera.*
 import java.io.File
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -33,43 +36,39 @@ class CameraActivity : AppCompatActivity(), Executor {
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
     }
 
-    private var cameraId = CameraX.LensFacing.BACK
-    private lateinit var preview: Preview
-    private lateinit var imageCapture: ImageCapture
+    //    private var cameraId = CameraX.LensFacing.BACK
+//    private lateinit var preview: Preview
+//    private lateinit var imageCapture: ImageCapture
     private var isFlashEnabled = false
+
+    private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
+    private var preview: Preview? = null
+    private var imageCapture: ImageCapture? = null
+    private var camera: Camera? = null
+    private var cameraProvider: ProcessCameraProvider? = null
+    private lateinit var cameraExecutor: ExecutorService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
+        cameraExecutor = Executors.newSingleThreadExecutor()
         if (allPermissionsGranted()) {
             textureView.post { startCamera() }
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
-
         rotateCamera?.setOnClickListener {
             rotateCamera()
         }
-
         flash?.setOnClickListener {
             flash()
         }
-
-        cameraId = if ("0" == intent.getStringExtra(BaseBuilder.CAMERA_MODE) ?: "0") {
-            CameraX.LensFacing.BACK
+        lensFacing = if ("0" == intent.getStringExtra(BaseBuilder.CAMERA_MODE) ?: "0") {
+            CameraSelector.LENS_FACING_BACK
         } else {
-            CameraX.LensFacing.FRONT
+            CameraSelector.LENS_FACING_FRONT
         }
-
-        textureView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateTransform()
-        }
-
-        if (false == intent?.getBooleanExtra(
-                BaseBuilder.CAMERA_ROTATE_ENABLED,
-                true
-            ) || !CameraX.hasCameraWithLensFacing(CameraX.LensFacing.FRONT)
-        ) {
+        if (false == intent?.getBooleanExtra(BaseBuilder.CAMERA_ROTATE_ENABLED, true)) {
             rotateCamera?.visibility = View.GONE
         }
         if (false == intent?.getBooleanExtra(BaseBuilder.CAMERA_FLASH_ENABLED, true)) {
@@ -79,11 +78,39 @@ class CameraActivity : AppCompatActivity(), Executor {
             setResult(Activity.RESULT_CANCELED)
             finish()
         }
+        takePhoto.setOnClickListener {
+            val file = File(getExternalFilesDir(null), "${System.currentTimeMillis()}.jpg")
+            val metadata = ImageCapture.Metadata().apply {
+            }
+            if (null != imageCapture) {
+                val outputOptions = ImageCapture.OutputFileOptions.Builder(file)
+                    .setMetadata(metadata)
+                    .build()
+                imageCapture?.takePicture(
+                    outputOptions,
+                    cameraExecutor,
+                    object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                            setResult(
+                                Activity.RESULT_OK,
+                                intent.putExtra(PHOTO_URL, file.absolutePath)
+                            )
+                            this@CameraActivity.finish()
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            exception?.printStackTrace()
+                            setResult(Activity.RESULT_CANCELED)
+                            finish()
+                        }
+                    })
+            }
+        }
     }
 
     private fun flash() {
         isFlashEnabled = !isFlashEnabled
-        preview?.enableTorch(isFlashEnabled)
+        camera?.cameraControl?.enableTorch(isFlashEnabled)
         if (isFlashEnabled) {
             flash?.setImageResource(R.drawable.ic_flashlight_on)
         } else {
@@ -93,41 +120,74 @@ class CameraActivity : AppCompatActivity(), Executor {
 
     @SuppressLint("RestrictedApi")
     private fun startCamera() {
-        CameraX.unbindAll()
-        val metrics = DisplayMetrics().also { textureView.display.getRealMetrics(it) }
-        val screenAspectRatio = aspectRatio(metrics.widthPixels, metrics.heightPixels)
-        val previewConfig = PreviewConfig.Builder().apply {
-            setTargetAspectRatio(screenAspectRatio)
-            setLensFacing(cameraId)
-            setTargetRotation(textureView.display.rotation)
-        }.build()
-
-        preview = Preview(previewConfig)
-
-        preview.setOnPreviewOutputUpdateListener {
-            val parent = textureView.parent as ViewGroup
-            parent.removeView(textureView)
-            textureView.surfaceTexture = it.surfaceTexture
-            parent.addView(textureView, 0)
-            updateTransform()
+        this?.let {
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(it)
+            cameraProviderFuture.addListener(Runnable {
+                cameraProvider = cameraProviderFuture.get()
+                bindCameraUseCases()
+                camera?.cameraControl?.enableTorch(isFlashEnabled)
+                if (false == camera?.cameraInfo?.hasFlashUnit() || false == intent?.getBooleanExtra(
+                        BaseBuilder.CAMERA_FLASH_ENABLED,
+                        true
+                    )
+                ) {
+                    flash?.visibility = View.INVISIBLE
+                } else {
+                    flash?.visibility = View.VISIBLE
+                }
+            }, ContextCompat.getMainExecutor(it))
         }
-
-        if (false == CameraX.getCameraInfo(cameraId)?.isFlashAvailable?.value || false == intent?.getBooleanExtra(
-                BaseBuilder.CAMERA_FLASH_ENABLED,
-                true
-            )
-        ) {
-            flash?.visibility = View.GONE
-        } else {
-            flash?.visibility = View.VISIBLE
-        }
-        CameraX.bindToLifecycle(this, preview)
-        preview.enableTorch(isFlashEnabled)
-
-        captureImage()
     }
 
-    private fun aspectRatio(width: Int, height: Int): AspectRatio {
+    private fun bindCameraUseCases() {
+        val metrics = DisplayMetrics().also { textureView?.display?.getRealMetrics(it) }
+        val screenAspectRatio = aspectRatio(metrics.widthPixels, metrics.heightPixels)
+        val rotation = textureView?.display?.rotation
+        val cameraProvider = cameraProvider
+            ?: throw IllegalStateException("Camera initialization failed.")
+        val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+
+        preview = rotation?.let {
+            Preview.Builder()
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(it)
+                .build()
+        }
+        imageCapture = rotation?.let {
+            ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setFlashMode(
+                    if (true == camera?.cameraInfo?.hasFlashUnit() && isFlashEnabled) {
+                        ImageCapture.FLASH_MODE_ON
+                    } else {
+                        ImageCapture.FLASH_MODE_OFF
+                    }
+                )
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(it)
+                .build()
+        }
+
+        val imageAnalyzer = rotation?.let { r ->
+            ImageAnalysis.Builder()
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(r)
+                .build()
+        }
+
+        cameraProvider.unbindAll()
+
+        try {
+            camera = cameraProvider.bindToLifecycle(
+                this, cameraSelector, preview, imageCapture, imageAnalyzer
+            )
+            preview?.setSurfaceProvider(textureView.createSurfaceProvider())
+        } catch (exc: Exception) {
+            exc.printStackTrace()
+        }
+    }
+
+    private fun aspectRatio(width: Int, height: Int): Int {
         val previewRatio = max(width, height).toDouble() / min(width, height)
         if (abs(previewRatio - RATIO_4_3_VALUE) <= abs(previewRatio - RATIO_16_9_VALUE)) {
             return AspectRatio.RATIO_4_3
@@ -137,13 +197,12 @@ class CameraActivity : AppCompatActivity(), Executor {
 
     @SuppressLint("RestrictedApi")
     private fun rotateCamera() {
-        cameraId = if (CameraX.LensFacing.FRONT == cameraId) {
-            CameraX.LensFacing.BACK
+        lensFacing = if (CameraSelector.LENS_FACING_FRONT == lensFacing) {
+            CameraSelector.LENS_FACING_BACK
         } else {
-            CameraX.LensFacing.FRONT
+            CameraSelector.LENS_FACING_FRONT
         }
         try {
-            CameraX.getCameraWithLensFacing(cameraId)
             startCamera()
         } catch (exc: Exception) {
             exc.printStackTrace()
@@ -152,68 +211,68 @@ class CameraActivity : AppCompatActivity(), Executor {
         }
     }
 
-    @SuppressLint("RestrictedApi")
-    private fun captureImage() {
-        val imageCaptureConfig = ImageCaptureConfig.Builder()
-            .apply {
-                setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY)
-                setLensFacing(cameraId)
-                setFlashMode(
-                    if (true == CameraX.getCameraInfo(cameraId)?.isFlashAvailable?.value && isFlashEnabled)
-                        FlashMode.ON
-                    else
-                        FlashMode.OFF
-                )
-                setTargetRotation(textureView.display.rotation)
-            }.build()
-        imageCapture = ImageCapture(imageCaptureConfig)
-        CameraX.bindToLifecycle(this, imageCapture)
-        takePhoto.setOnClickListener {
-            val file = File(getExternalFilesDir(null), "${System.currentTimeMillis()}.jpg")
-            val metadata = ImageCapture.Metadata().apply {
-//                isReversedHorizontal = cameraId == CameraX.LensFacing.FRONT
-            }
-            imageCapture.takePicture(
-                file,
-                metadata,
-                this,
-                object : ImageCapture.OnImageSavedListener {
-                    override fun onImageSaved(file: File) {
-                        setResult(Activity.RESULT_OK, intent.putExtra(PHOTO_URL, file.absolutePath))
-                        this@CameraActivity.finish()
-                    }
-
-                    override fun onError(
-                        imageCaptureError: ImageCapture.ImageCaptureError,
-                        message: String,
-                        cause: Throwable?
-                    ) {
-                        cause?.printStackTrace()
-                        setResult(Activity.RESULT_CANCELED)
-                        finish()
-                    }
-                })
-        }
-    }
+//    @SuppressLint("RestrictedApi")
+//    private fun captureImage() {
+//        val imageCaptureConfig = ImageCaptureConfig.Builder()
+//            .apply {
+//                setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY)
+//                setLensFacing(cameraId)
+//                setFlashMode(
+//                    if (true == CameraX.getCameraInfo(cameraId)?.isFlashAvailable?.value && isFlashEnabled)
+//                        FlashMode.ON
+//                    else
+//                        FlashMode.OFF
+//                )
+//                setTargetRotation(textureView.display.rotation)
+//            }.build()
+//        imageCapture = ImageCapture(imageCaptureConfig)
+//        CameraX.bindToLifecycle(this, imageCapture)
+//        takePhoto.setOnClickListener {
+//            val file = File(getExternalFilesDir(null), "${System.currentTimeMillis()}.jpg")
+//            val metadata = ImageCapture.Metadata().apply {
+////                isReversedHorizontal = cameraId == CameraX.LensFacing.FRONT
+//            }
+//            imageCapture.takePicture(
+//                file,
+//                metadata,
+//                this,
+//                object : ImageCapture.OnImageSavedListener {
+//                    override fun onImageSaved(file: File) {
+//                        setResult(Activity.RESULT_OK, intent.putExtra(PHOTO_URL, file.absolutePath))
+//                        this@CameraActivity.finish()
+//                    }
+//
+//                    override fun onError(
+//                        imageCaptureError: ImageCapture.ImageCaptureError,
+//                        message: String,
+//                        cause: Throwable?
+//                    ) {
+//                        cause?.printStackTrace()
+//                        setResult(Activity.RESULT_CANCELED)
+//                        finish()
+//                    }
+//                })
+//        }
+//}
 
     override fun execute(command: Runnable) {
         command.run()
     }
 
-    private fun updateTransform() {
-        val matrix = Matrix()
-        val centerX = textureView.width / 2f
-        val centerY = textureView.height / 2f
-        val rotationDegrees = when (textureView.display.rotation) {
-            Surface.ROTATION_0 -> 0
-            Surface.ROTATION_90 -> 90
-            Surface.ROTATION_180 -> 180
-            Surface.ROTATION_270 -> 270
-            else -> return
-        }
-        matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
-        textureView.setTransform(matrix)
-    }
+//    private fun updateTransform() {
+//        val matrix = Matrix()
+//        val centerX = textureView.width / 2f
+//        val centerY = textureView.height / 2f
+//        val rotationDegrees = when (textureView.display.rotation) {
+//            Surface.ROTATION_0 -> 0
+//            Surface.ROTATION_90 -> 90
+//            Surface.ROTATION_180 -> 180
+//            Surface.ROTATION_270 -> 270
+//            else -> return
+//        }
+//        matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
+//        textureView.setTransform(matrix)
+//    }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -222,7 +281,7 @@ class CameraActivity : AppCompatActivity(), Executor {
     ) {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                textureView.post { startCamera() }
+                textureView?.post { startCamera() }
             } else {
                 Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT)
                     .show()
@@ -237,8 +296,9 @@ class CameraActivity : AppCompatActivity(), Executor {
 
     override fun onDestroy() {
         super.onDestroy()
-        imageCapture.let {
-            CameraX.unbind(imageCapture)
-        }
+//        imageCapture.let {
+//            CameraX.unbind(imageCapture)
+//        }
+        cameraExecutor.shutdown()
     }
 }

@@ -62,10 +62,10 @@
         android:layout_below="@id/toolbar"
         android:orientation="vertical">
 
-        <TextureView
+        <androidx.camera.view.PreviewView
             android:id="@+id/textureView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_above="@id/bottomMenu" />
 
         <RelativeLayout
