@@ -178,7 +178,7 @@ class CameraActivity : AppCompatActivity(), Executor {
             camera = cameraProvider.bindToLifecycle(
                 this, cameraSelector, preview, imageCapture, imageAnalyzer
             )
-            preview?.setSurfaceProvider(textureView.createSurfaceProvider())
+            preview?.setSurfaceProvider(textureView?.surfaceProvider)
         } catch (exc: Exception) {
             exc.printStackTrace()
         }
